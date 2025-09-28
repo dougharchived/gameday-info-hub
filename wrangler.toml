@@ -1,0 +1,14 @@
+name = "gameday-info-worker"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+[vars]
+# ODDS_API_KEY = "your_free_odds_api_key"
+# STATS_API_KEY = "your_free_stats_api_key"
+
+[triggers]
+crons = [ "0 */1 * * *" ] # hourly; increase frequency on gamedays if limits allow
+
+[[kv_namespaces]]
+binding = "PICKS_KV"
+id = "<create this in Cloudflare dashboard>"
