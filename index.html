@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GameDay Info Hub</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#0b0f14; color:#e9eef5; }
+    header { position:sticky; top:0; background:#0b0f14cc; backdrop-filter: blur(6px); border-bottom:1px solid #1b2430; padding:14px 16px; }
+    .brand { font-weight:700; letter-spacing:.3px; }
+    .tabs { display:flex; gap:8px; margin-top:8px; }
+    .tab { padding:8px 12px; border:1px solid #1b2430; border-radius:999px; cursor:pointer; font-weight:600; background:#101722; }
+    .tab[aria-selected="true"]{ background:#1b2536; border-color:#2a3a54; }
+    .wrap { max-width:1100px; margin:24px auto; padding:0 16px; }
+    .header-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .pill { border:1px solid #1b2430; background:#0f1724; padding:6px 10px; border-radius:8px; font-size:14px; }
+    .section { margin-top:18px; }
+    .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px,1fr)); gap:12px; }
+    .card { border:1px solid #1b2430; background:#0f1622; border-radius:14px; padding:12px; }
+    .muted { color:#a9b6c6; }
+    .row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .label { font-weight:700; font-size:13px; letter-spacing:.3px; text-transform:uppercase; opacity:.9; }
+    .tag { font-size:12px; border:1px solid #283246; padding:3px 6px; border-radius:6px; }
+    .list { margin-top:8px; display:grid; gap:8px; }
+    .item { border:1px solid #1b2430; background:#0d1420; border-radius:10px; padding:10px; }
+    .small { font-size:12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand">GameDay Info Hub — Best Bets (Read-Only)</div>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" data-league="NFL" aria-selected="true">NFL</button>
+        <button class="tab" role="tab" data-league="NBA">NBA</button>
+        <button class="tab" role="tab" data-league="NHL">NHL</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" id="app"></main>
+
+  <script>
+    const state = { league: 'NFL', data: null };
+
+    const fmtPct = (x)=> (x==null? '—' : (x*100).toFixed(1)+'%');
+    const fmtAmerican = (dec)=>{ if(!dec) return '—'; if(dec>=2) return '+'+Math.round((dec-1)*100); 
+                                 const a = -Math.round(100/(dec-1)); return a; };
+
+    async function load(){
+      try{
+        const res = await fetch('slate.json?ts=' + Date.now());
+        state.data = await res.json();
+        render();
+      }catch(e){
+        document.getElementById('app').innerHTML = `<div class="section">Could not load slate.json. Make sure GitHub Pages is enabled and the workflow ran once.</div>`;
+      }
+    }
+
+    function header(leag){
+      const h = state.data?.headers?.[leag] || { season:{W:0,L:0,P:0,win:0}, last7:{W:0,L:0,P:0,win:0} };
+      return `
+        <div class="header-row">
+          <div class="pill">Season: <strong>${h.season.W}-${h.season.L}-${h.season.P}</strong> · Win ${fmtPct(h.season.win)}</div>
+          <div class="pill">Last 7: <strong>${h.last7.W}-${h.last7.L}-${h.last7.P}</strong> · Win ${fmtPct(h.last7.win)}</div>
+        </div>`;
+    }
+
+    function topPicks(leag){
+      const picks = state.data?.picks?.[leag] || {};
+      const items = [
+        ['Safest Bet', picks.safest],
+        ['Best Value Bet', picks.bestValue],
+        ['Play It Risky', picks.risky]
+      ].map(([label,p])=>{
+        if(!p) return '';
+        const ev = (p.p * (p.decimal_odds-1) - (1-p.p)).toFixed(3);
+        return `<div class="card">
+          <div class="row"><div class="label">${label}</div><div class="tag">${p.market}</div></div>
+          <div class="muted small" style="margin-top:6px;">${p.away} @ ${p.home} · ${new Date(p.start).toLocaleString()}</div>
+          <div class="row" style="margin-top:8px;">
+            <div>Our Hit %:<br><strong>${fmtPct(p.p)}</strong></div>
+            <div>Book Odds:<br><strong>${fmtAmerican(p.decimal_odds)}</strong> <span class="muted small">(${fmtPct(1/p.decimal_odds)})</span></div>
+            <div>EV:<br><strong>${ev}</strong></div>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div class="section"><div class="label">Top Picks</div><div class="cards">${items}</div></div>`;
+    }
+
+    function listAll(leag){
+      const rows = (state.data?.all?.[leag]||[]).map(p=>{
+        const ev = (p.p * (p.decimal_odds-1) - (1-p.p)).toFixed(3);
+        return `<div class="item">
+          <div class="row"><div><strong>${p.away}</strong> @ <strong>${p.home}</strong> · <span class="muted small">${new Date(p.start).toLocaleString()}</span></div><div class="tag">${p.label}</div></div>
+          <div class="row" style="margin-top:6px;">
+            <div>Market: <strong>${p.market}</strong></div>
+            <div>Our Hit %: <strong>${fmtPct(p.p)}</strong></div>
+            <div>Odds: <strong>${fmtAmerican(p.decimal_odds)}</strong> <span class="muted small">(${fmtPct(1/p.decimal_odds)})</span></div>
+            <div>EV: <strong>${ev}</strong></div>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div class="section"><div class="label">All Picks (Today)</div><div class="list">${rows || '<div class="muted">No games today.</div>'}</div></div>`;
+    }
+
+    function render(){
+      const leag = state.league;
+      document.getElementById('app').innerHTML = header(leag) + topPicks(leag) + listAll(leag);
+    }
+
+    document.querySelectorAll('.tab').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected','false'));
+        btn.setAttribute('aria-selected','true');
+        state.league = btn.dataset.league; render();
+      });
+    });
+
+    load();
+  </script>
+</body>
+</html>
