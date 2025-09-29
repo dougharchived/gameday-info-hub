@@ -2,35 +2,49 @@ name: Update slate.json (hourly)
 
 on:
   schedule:
-    - cron: "0 * * * *"   # every hour
-  workflow_dispatch:
+    - cron: "0 * * * *"        # every hour
+  workflow_dispatch:            # allow manual run
 
 permissions:
-  contents: write
+  contents: write               # allow pushing commits
 
 jobs:
   build-and-commit:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main            # ensure we're on main (not detached HEAD)
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
+      # OPTIONAL: If your build script lives at repo root as "build.js" (your case)
       - name: Build slate.json
         run: node build.js
 
-      - name: Commit changes
+      # If your script is at scripts/build.js instead, use:
+      # - name: Build slate.json
+      #   run: node scripts/build.js
+
+      - name: Configure git author + safe dir
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Commit changes (if any)
         run: |
           if [[ -n "$(git status --porcelain slate.json)" ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add slate.json
             git commit -m "chore: update slate.json [skip ci]"
-            git push
+            # push explicitly to main (works even on scheduled runs)
+            git push origin HEAD:main
           else
             echo "No changes to commit"
           fi
